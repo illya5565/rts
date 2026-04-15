@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>little soldiers - big problems</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="game-window" style="width: 1300px;"> <div style="display: flex; position: relative;">
+        <canvas id="gameCanvas" width="1300" height="450"></canvas>
+        
+        <div id="tree-menu">
+            <button id="close-tree-btn" onclick="toggleTree()">X</button>
+            <div id="tree-container"></div>
+        </div>
+    </div>
+    
+<div id="ui-panel">
+    <div id="gold-display">Gold: 0 | Units: 0/20</div>
+    <div id="shop-controls"></div>
+    <div id="bottom-row">
+        <div id="main-actions">
+            <button id="start-btn" onclick="startBattle()">START</button>
+            <button onclick="toggleTree()">RESEARCH</button>
+        </div>
+        <div id="unit-info-display"></div>
+    </div>
+</div>
+</div>
+</div>
+</div>
+
+<script src="state.js"></script>
+<script src="units.js"></script>
+<script src="tree.js"></script>
+
+<script src="render.js"></script>
+<script src="economy.js"></script>
+
+<script src="enginecombat.js"></script>
+<script src="engine.js"></script>
+<script src="input.js"></script>
+</body>
+</html>

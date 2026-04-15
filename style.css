@@ -1,0 +1,155 @@
+#game-window {
+    width: 1200px;
+    height: 600px;
+    background: #333;
+    position: relative;
+    overflow: hidden;
+    border: 5px solid #222;
+}
+
+#gameCanvas {
+    display: block;
+    background: #2e3b12;
+}
+
+#ui-panel {
+    height: 160px;
+    background: #222;
+    display: flex;
+    flex-direction: column;
+    padding: 5px 15px;
+    gap: 5px;
+}
+
+#gold-display {
+    color: #ffd700;
+    font-weight: bold;
+    font-size: 16px;
+}
+
+#shop-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+#shop-controls button {
+    padding: 4px 8px;
+    font-size: 12px;
+    background: #444;
+    color: white;
+    border: 1px solid #666;
+}
+
+#shop-controls button.selected {
+    background: #ffd700;
+    color: black;
+    border: 2px solid white;
+}
+
+#bottom-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+#main-actions {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+#main-actions button {
+    padding: 6px 12px;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+#start-btn {
+    background: white !important;
+    color: black !important;
+    border: 2px solid black !important;
+}
+
+#main-actions button:last-child {
+    background: #002366;
+    color: white;
+    border: 2px solid #1e419b;
+}
+
+#unit-info-display {
+    color: #ffd700;
+    font-size: 14px;
+    flex-grow: 1;
+    margin-left: 20px;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+#tree-menu {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 700px;
+    height: 450px;
+    background: rgba(10, 10, 10, 0.98);
+    display: none;
+    z-index: 2000;
+    overflow: hidden;
+}
+
+#tree-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+
+#tree-svg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 1;
+}
+
+#close-tree-btn {
+    position: absolute;
+    top: 10px;
+    right: 15px;
+    background: #9b1e1e;
+    color: white;
+    border: none;
+    font-size: 20px;
+    font-weight: bold;
+    cursor: pointer;
+    padding: 5px 12px;
+    z-index: 2100;
+}
+
+.skill-node {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    background: #222;
+    border: 5px solid #1e419b;
+    cursor: pointer;
+    box-sizing: content-box;
+    z-index: 2;
+    transition: transform 0.1s;
+}
+
+.skill-node.bought {
+    border-color: #ffd700;
+}
+
+.skill-node.blocked {
+    border-color: #9b1e1e;
+    opacity: 1 !important;
+}
+
+.skill-node:hover:not(.blocked) {
+    transform: scale(1.2);
+    background: #444;
+}
