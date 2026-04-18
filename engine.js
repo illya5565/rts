@@ -276,15 +276,15 @@ function checkWinner() {
     let eAlive = squads.some(s => s.side === "enemy" && s.alive);
 
     if (!eAlive && squads.length > 0) {
-        alert("VICTORY!");
         playerGold += 100 + (currentWave * 20);
         currentWave++;
         resetToMenu();
+        placementLoop();
+        updateGoldDisplay();
         return true;
     } 
     
     if (!pAlive && squads.length > 0) {
-        alert("DEFEAT...");
         location.reload(); 
         return true;
     }
@@ -293,6 +293,7 @@ function checkWinner() {
 function resetToMenu() {
     isPlacementPhase = true;
     selectedSquads = [];
+    squads = [];
     document.getElementById("start-btn").disabled = false;
     squads.forEach(s => {
         if (s.side === "player") s.manualTarget = null;

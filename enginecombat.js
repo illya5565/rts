@@ -285,54 +285,54 @@ if (typeof createEffect === "function") {
 }
 
 function applySplashDamage(x, y, radius, damage, side) {
-    s.soldiers.forEach(sol => {
+    squads.forEach(sol => {
 
     if (!sol.alive) {
         sol.state = "dead";
         return;
     }
 
-        const halfW = s.hitbox.w / 2;
-        const halfH = s.hitbox.h / 2;
-        const closestX = Math.max(s.x - halfW, Math.min(x, s.x + halfW));
-        const closestY = Math.max(s.y - halfH, Math.min(y, s.y + halfH));
+        const halfW = sol.hitbox.w / 2;
+        const halfH = sol.hitbox.h / 2;
+        const closestX = Math.max(sol.x - halfW, Math.min(x, sol.x + halfW));
+        const closestY = Math.max(sol.y - halfH, Math.min(y, sol.y + halfH));
         const distToRect = Math.hypot(x - closestX, y - closestY);
         if (distToRect > radius) return;
 
         let hit = false;
-        s.soldiers.forEach(sol => {
+        sol.soldiers.forEach(sol => {
 
     if (!sol.alive) {
         sol.state = "dead";
         return;
     }
             
-            const cos = Math.cos(s.angle);
-            const sin = Math.sin(s.angle);
-            const sWorldX = s.x + (soldier.offsetX * cos - soldier.offsetY * sin);
-            const sWorldY = s.y + (soldier.offsetX * sin + soldier.offsetY * cos);
+            const cos = Math.cos(sol.angle);
+            const sin = Math.sin(sol.angle);
+            const sWorldX = sol.x + (sol.offsetX * cos - sol.offsetY * sin);
+            const sWorldY = sol.y + (sol.offsetX * sin + sol.offsetY * cos);
             
             const d = Math.hypot(sWorldX - x, sWorldY - y);
 
             if (d <= radius) {
                 const falloff = 1 - (d / radius);
-                soldier.hp -= damage * falloff;
+                sol.hp -= damage * falloff;
                 hit = true;
             }
         });
         
-        if (hit && !s.soldiers.some(sol => sol.alive)) s.alive = false;
+        if (hit && !sol.soldiers.some(sol => sol.alive)) sol.alive = false;
     });
 }
 
 function shootSquad(attacker, target, aimPoint) {
-    const aliveSoldiers = attacker.soldiers.filter(s => s.alive);
+    const aliveSoldiers = attacker.soldiers.filter(sol => sol.alive);
     if (aliveSoldiers.length === 0) return;
 
     if (attacker.stats.bulletType) {
 if (( (target && target.alive) || aimPoint) && !attacker.isMoving) {
-            const readySoldier = attacker.soldiers.find(s => 
-                s.alive && (!s.lastShot || performance.now() - s.lastShot > attacker.stats.reload)
+            const readySoldier = attacker.soldiers.find(sol => 
+                sol.alive && (!sol.lastShot || performance.now() - sol.lastShot > attacker.stats.reload)
             );
             
             if (readySoldier) {
@@ -393,7 +393,7 @@ const ty = aimPoint ? aimPoint.y : (target ? target.y : attacker.y);
             let totalDamage = aliveSoldiers.length * (finalDmg / 10);
             if (target && target.alive) {
                 while (totalDamage > 0) {
-                    let victims = target.soldiers.filter(s => s.alive);
+                    let victims = target.soldiers.filter(sol => sol.alive);
                     if (victims.length === 0) { target.alive = false; break; }
                     let victim = victims[Math.floor(Math.random() * victims.length)];
                     victim.hp -= finalDmg; 
@@ -411,11 +411,11 @@ const ty = aimPoint ? aimPoint.y : (target ? target.y : attacker.y);
 
     if (["heal", "heal_mega", "heal_multi"].includes(attacker.aura)) {
     let injuredSquads = squads.filter(s => {
-        if (s.side !== attacker.side || !s.alive) return false;
-        const halfW = s.hitbox.w / 2;
-        const halfH = s.hitbox.h / 2;
-        const closestX = Math.max(s.x - halfW, Math.min(attacker.x, s.x + halfW));
-        const closestY = Math.max(s.y - halfH, Math.min(attacker.y, s.y + halfH));
+        if (sol.side !== attacker.side || !sol.alive) return false;
+        const halfW = sol.hitbox.w / 2;
+        const halfH = sol.hitbox.h / 2;
+        const closestX = Math.max(s.x - halfW, Math.min(attacker.x, sol.x + halfW));
+        const closestY = Math.max(s.y - halfH, Math.min(attacker.y, sol.y + halfH));
         const distToRect = Math.hypot(attacker.x - closestX, attacker.y - closestY);
         if (distToRect > attacker.stats.range) return false;
         return s.soldiers.some(sol => sol.alive && sol.hp < sol.maxHp);
