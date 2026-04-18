@@ -28,8 +28,7 @@ gameCanvas.onmousedown = function(e) {
     else if (e.button === 2) {
         if (isPlacementPhase) {
             const targetIndex = squads.findIndex(sq => 
-                sq.side === "player" && 
-                Math.hypot(sq.x - worldX, sq.y - worldY) < 30
+                sq.side === "player" && isPointInSquad(worldX, worldY, sq)
             );
 
             if (targetIndex !== -1) {
@@ -92,8 +91,7 @@ window.onmouseup = function(e) {
 
         if (dist < 5) {
             selectedSquads = squads.filter(sq => 
-                sq.side === "player" && sq.alive &&
-                Math.hypot(sq.x - x, sq.y - y) < 40
+                sq.side === "player" && sq.alive && isPointInSquad(x, y, sq)
             ).slice(0, 1);
         } else {
             selectedSquads = squads.filter(sq => 
@@ -110,15 +108,18 @@ window.onmouseup = function(e) {
         const currentWorldY = y;
 
         let clickedEnemy = squads.find(sq => 
-            sq.side !== "player" && sq.alive &&
-            Math.hypot(sq.x - orderPoint.x, sq.y - orderPoint.y) < 50
-        );
+    sq.side !== "player" && sq.alive &&
+    isPointInSquad(orderPoint.x, orderPoint.y, sq)
+);
 
         let finalAngle = Math.atan2(currentWorldY - orderPoint.y, currentWorldX - orderPoint.x);
         const isSmallDrag = Math.hypot(currentWorldX - orderPoint.x, currentWorldY - orderPoint.y) < 20;
 
         selectedSquads.forEach(sq => {
             const isArtillery = sq.stats && sq.stats.bulletType !== undefined;
+            sq.attackOrder = null;
+            sq.manualTarget = null;
+            sq.targetPoint = null;
 
             if (clickedEnemy) {
                 sq.attackOrder = clickedEnemy;

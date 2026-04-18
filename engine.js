@@ -24,9 +24,13 @@ function update(time) {
     if (typeof updateProjectiles === "function") {
         updateProjectiles();
     }
+    
+    if (typeof updateParticles === "function") {
+        updateAndDrawParticles();
+    }
 
     squads.forEach(s => {
-        if (!s.alive) return;
+    if (!s.alive) return;
 
         const now = performance.now();
         const supportTypes = ["Commander", "Ensign", "Medic", "Mounted Commander", "High Officer", "Field Surgeon", "Medical Squad"];
@@ -35,6 +39,13 @@ function update(time) {
         s.deathTimes = (s.deathTimes || []).filter(t => now - t < 5000);
         const aliveCount = s.soldiers.filter(sol => sol.alive).length;
         const initial = s.initialCount || 40;
+
+        let moveSpeed = s.stats.speed;
+        const isCollidingAny = squads.some(other => {
+            if (other === s || !other.alive) return false;
+            return areSquadsColliding(s, other);
+        });
+        if (isCollidingAny) moveSpeed *= 0.5;
 
         if (s.state === 1) {
             const deadRecently = s.deathTimes.length;
@@ -60,27 +71,24 @@ function update(time) {
                 s.soldiers.forEach(sol => {
                     if (!sol.alive && recovered < recoverCount) {
                         sol.alive = true;
+                        sol.state = "idle";
                         sol.hp = sol.maxHp;
                         recovered++;
                     }
                 });
                 s.state = 3;
             }
-        } 
-        else {
+        } else {
             if (!isAutoMode && s.side === "player" && s.manualTarget) {
                 moveTarget = s.manualTarget;
                 isManualOrder = true;
                 s.isGuarding = false;
-            } 
-            else if (s.attackOrder && s.attackOrder.alive) {
+            } else if (s.attackOrder && s.attackOrder.alive) {
                 moveTarget = s.attackOrder; 
                 s.isGuarding = false;
-            }
-            else if (s.isGuarding) {
+            } else if (s.isGuarding) {
                 moveTarget = null; 
-            }
-            else {
+            } else {
                 let enemies = squads.filter(t => t.side !== s.side && t.alive);
                 let combatAllies = squads.filter(a => a.side === s.side && a.alive && a !== s && !supportTypes.includes(a.type));
 
@@ -91,131 +99,165 @@ function update(time) {
                 }
             }
         }
+        let enemySquad = squads.find(target => target.side !== s.side && target.alive);
+
+s.soldiers.forEach(sol => {
+    if (!sol.alive) {
+        sol.state = "dead";
+        return;
+    }
+
+    if (enemySquad) {
+        const cos = Math.cos(s.angle);
+const sin = Math.sin(s.angle);
+
+const solX = s.x + (sol.offsetX * cos - sol.offsetY * sin);
+const solY = s.y + (sol.offsetX * sin + sol.offsetY * cos);
+
+let dist = Math.hypot(enemySquad.x - solX, enemySquad.y - solY);
+
+        if (dist <= s.stats.range) {
+            sol.state = "shoot";
+            sol.isMoving = false;
+            
+            const now = performance.now();
+            if (!sol.lastShot || now - sol.lastShot > s.stats.reload) {
+                if (typeof createProjectile === "function") {
+                    createProjectile(sol, enemySquad);
+                    sol.lastShot = now;
+                    if (typeof createEffect === "function") createEffect(sol.x, sol.y, 'smoke');
+                }
+            }
+        } else {
+    sol.state = "move";
+}
+    }
+});
 
         if (moveTarget) {
             let dx = moveTarget.x - s.x;
             let dy = moveTarget.y - s.y;
             let dist = Math.hypot(dx, dy);
-            let stopDist = (s.state === 2) ? 10 : (isManualOrder ? 10 : (isSupport ? 70 : s.stats.range - 20));
+            
+            let stopDist = (s.state === 2) ? 10 : (isManualOrder ? 10 : (isSupport ? 70 : s.stats.range - 40));
             let currentRotSpeed = s.stats.rotSpeed || 0.05;
 
-            if (s.targetPoint && s.state !== 2) {
-            let angleToPoint = Math.atan2(s.targetPoint.y - s.y, s.targetPoint.x - s.x);
-            let diff = angleToPoint - s.angle;
-            while (diff < -Math.PI) diff += Math.PI * 2;
-            while (diff > Math.PI) diff -= Math.PI * 2;
-            if (Math.abs(diff) > (s.stats.rotSpeed || 0.05)) {
-                s.angle += (diff > 0 ? 1 : -1) * (s.stats.rotSpeed || 0.05);
-            } else {
-                s.angle = angleToPoint;
-            }
-            moveTarget = null;
-        }
+            const isTouchingTarget = (moveTarget.hitbox) ? areSquadsColliding(s, moveTarget) : false;
 
-            if (dist > stopDist) {
-                let targetAngle = Math.atan2(dy, dx);
-                let diff = targetAngle - s.angle;
+            if (s.targetPoint && s.state !== 2) {
+                let angleToPoint = Math.atan2(s.targetPoint.y - s.y, s.targetPoint.x - s.x);
+                let diff = angleToPoint - s.angle;
                 while (diff < -Math.PI) diff += Math.PI * 2;
                 while (diff > Math.PI) diff -= Math.PI * 2;
-
                 if (Math.abs(diff) > currentRotSpeed) {
                     s.angle += (diff > 0 ? 1 : -1) * currentRotSpeed;
-                    s.isMoving = false;
                 } else {
-                    s.angle = targetAngle;
-                    s.isMoving = true;
-                    let speed = s.stats.speed * (s.state === 2 ? 1.6 : 1.0);
-                    if (s.state !== 2) {
-                        let cmd = squads.find(b => b.side === s.side && b.alive && b.aura?.includes("all_stats") && Math.hypot(b.x-s.x, b.y-s.y) < 200);
-                        if (cmd) speed *= (cmd.aura === "all_stats_mega" ? 1.4 : 1.2);
-                    }
-                    s.x += Math.cos(s.angle) * speed;
-                    s.y += Math.sin(s.angle) * speed;
+                    s.angle = angleToPoint;
                 }
-            } else {
-                s.isMoving = false;
-                if (isManualOrder) {
-                    if (s.targetArrivalAngle !== undefined) {
-                        let diffArrival = s.targetArrivalAngle - s.angle;
-                        while (diffArrival < -Math.PI) diffArrival += Math.PI * 2;
-                        while (diffArrival > Math.PI) diffArrival -= Math.PI * 2;
-                        if (Math.abs(diffArrival) > currentRotSpeed) {
-                            s.angle += (diffArrival > 0 ? 1 : -1) * currentRotSpeed;
+                moveTarget = null;
+            }
+
+            if (moveTarget) {
+                if (isTouchingTarget && s.side !== moveTarget.side) {
+                    s.isMoving = false;
+                } else if (dist > stopDist) {
+                    let targetAngle = Math.atan2(dy, dx);
+                    let diff = targetAngle - s.angle;
+                    while (diff < -Math.PI) diff += Math.PI * 2;
+                    while (diff > Math.PI) diff -= Math.PI * 2;
+
+                    if (Math.abs(diff) > currentRotSpeed) {
+                        s.angle += (diff > 0 ? 1 : -1) * currentRotSpeed;
+                        s.isMoving = false;
+                    } else {
+                        s.angle = targetAngle;
+                        s.isMoving = true;
+                        let speed = moveSpeed * (s.state === 2 ? 1.6 : 1.0);
+                        if (s.state !== 2) {
+                            let cmd = squads.find(b => b.side === s.side && b.alive && b.aura?.includes("all_stats") && Math.hypot(b.x-s.x, b.y-s.y) < 200);
+                            if (cmd) speed *= (cmd.aura === "all_stats_mega" ? 1.4 : 1.2);
+                        }
+                        s.x += Math.cos(s.angle) * speed;
+                        s.y += Math.sin(s.angle) * speed;
+                    }
+                } else {
+                    s.isMoving = false;
+                    if (isManualOrder) {
+                        if (s.targetArrivalAngle !== undefined) {
+                            let diffArrival = s.targetArrivalAngle - s.angle;
+                            while (diffArrival < -Math.PI) diffArrival += Math.PI * 2;
+                            while (diffArrival > Math.PI) diffArrival -= Math.PI * 2;
+                            if (Math.abs(diffArrival) > currentRotSpeed) {
+                                s.angle += (diffArrival > 0 ? 1 : -1) * currentRotSpeed;
+                            } else {
+                                s.angle = s.targetArrivalAngle;
+                                s.manualTarget = null;
+                                s.isGuarding = true;
+                                delete s.targetArrivalAngle;
+                            }
                         } else {
-                            s.angle = s.targetArrivalAngle;
                             s.manualTarget = null;
                             s.isGuarding = true;
-                            delete s.targetArrivalAngle;
                         }
-                    } else {
-                        s.manualTarget = null;
-                        s.isGuarding = true;
                     }
                 }
             }
+        } else {
+            s.isMoving = false;
         }
 
-if (s.state !== 2) {
-    const now = performance.now();
-    const isArtillery = s.stats.bulletType !== undefined;
-    const reloadTime = s.stats.reload || 2000;
+        if (s.state !== 2) {
+            const isArtillery = s.stats.bulletType !== undefined;
+            const reloadTime = s.stats.reload || 2000;
 
-    if (now - (s.lastShot || 0) > reloadTime) {
-        let targetX = null, targetY = null;
-        let targetSquad = null;
+            if (now - (s.lastShot || 0) > reloadTime) {
+                let targetX = null, targetY = null;
+                let targetSquad = null;
 
-        if (s.targetPoint) {
-            targetX = s.targetPoint.x;
-            targetY = s.targetPoint.y;
-        } 
-        else {
-            let enemies = squads.filter(t => t.side !== s.side && t.alive);
-            if (enemies.length > 0) {
-                let nearest = enemies.reduce((p, c) => 
-                    Math.hypot(c.x - s.x, c.y - s.y) < Math.hypot(p.x - s.x, p.y - s.y) ? c : p);
-                
-                let dist = Math.hypot(nearest.x - s.x, nearest.y - s.y);
-                
-                if (dist <= (s.stats.range + 50)) {
-                    targetSquad = nearest;
-                    let sol = nearest.soldiers.find(v => v.alive);
-                    if (sol) {
-                        const cos = Math.cos(nearest.angle);
-                        const sin = Math.sin(nearest.angle);
-                        targetX = nearest.x + (sol.offsetX * cos - sol.offsetY * sin);
-                        targetY = nearest.y + (sol.offsetX * sin + sol.offsetY * cos);
-                    } else {
-                        targetX = nearest.x;
-                        targetY = nearest.y;
-                    }
-                }
-            }
-        }
-
-        if (targetX !== null) {
-            const angleToTarget = Math.atan2(targetY - s.y, targetX - s.x);
-            let angleDiff = Math.abs(s.angle - angleToTarget);
-            while (angleDiff > Math.PI) angleDiff = Math.PI * 2 - angleDiff;
-
-            if (angleDiff < 0.5) { 
-                
-                if (isArtillery) {
-                    if (typeof spawnProjectile === "function") {
-                        spawnProjectile(s, { x: targetX, y: targetY });
-                    }
+                if (s.targetPoint) {
+                    targetX = s.targetPoint.x;
+                    targetY = s.targetPoint.y;
                 } else {
-                    if (typeof shootSquad === "function" && targetSquad) {
-                        shootSquad(s, targetSquad, { x: targetX, y: targetY });
+                    let enemies = squads.filter(t => t.side !== s.side && t.alive);
+                    if (enemies.length > 0) {
+                        let nearest = enemies.reduce((p, c) => Math.hypot(c.x - s.x, c.y - s.y) < Math.hypot(p.x - s.x, p.y - s.y) ? c : p);
+                        let dist = Math.hypot(nearest.x - s.x, nearest.y - s.y);
+                        
+                        if (dist <= (s.stats.range + 50)) {
+                            targetSquad = nearest;
+                            let sol = nearest.soldiers.find(v => v.alive);
+                            if (sol) {
+                                const cos = Math.cos(nearest.angle);
+                                const sin = Math.sin(nearest.angle);
+                                targetX = nearest.x + (sol.offsetX * cos - sol.offsetY * sin);
+                                targetY = nearest.y + (sol.offsetX * sin + sol.offsetY * cos);
+                            } else {
+                                targetX = nearest.x;
+                                targetY = nearest.y;
+                            }
+                        }
                     }
                 }
 
-                s.lastShot = now;
-                s.soldiers.forEach(sol => sol.lastShot = now);
+                if (targetX !== null) {
+                    const angleToTarget = Math.atan2(targetY - s.y, targetX - s.x);
+                    let angleDiff = Math.abs(s.angle - angleToTarget);
+                    while (angleDiff > Math.PI) angleDiff = Math.PI * 2 - angleDiff;
+
+                    if (angleDiff < 0.8) { 
+                        if (isArtillery) {
+                            if (typeof spawnProjectile === "function") spawnProjectile(s, { x: targetX, y: targetY });
+                        } else {
+                            if (typeof shootSquad === "function" && targetSquad) shootSquad(s, targetSquad, { x: targetX, y: targetY });
+                        }
+                        s.lastShot = now;
+                        s.soldiers.forEach(sol => sol.lastShot = now);
+                    }
+                }
             }
         }
-    }
-}
     });
+    
 }
 function updateCamera() {
     if (keys['KeyW']) camera.y -= camera.speed;

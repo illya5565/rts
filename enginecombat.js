@@ -27,8 +27,16 @@ function createSquad(side, type, x, y) {
     const spacingX = isArtillery ? 22 : 15;
     const spacingY = isCavalry ? 18 : 10;
 
-    const totalW = (cols - 1) * spacingX;
-    const totalH = (rows - 1) * spacingY;
+const totalW = (cols - 1) * spacingX;
+const totalH = (rows - 1) * spacingY;
+
+const hW_unit = isArtillery ? 12 : (isCavalry ? 8 : 4);
+const hH_unit = isArtillery ? 6 : (isCavalry ? 8 : 6);
+
+const squadHitbox = {
+  w: totalW + hW_unit , 
+  h: totalH + hH_unit
+};
 
     const textureCoords = {
         "Line Infantry": [1, 1], "Veteran Swordsmen": [1, 2], "Armored Knights": [1, 3], "Pikemen": [1, 4],
@@ -55,12 +63,29 @@ function createSquad(side, type, x, y) {
     for (let i = 0; i < soldierCount; i++) {
         const col = Math.floor(i / rows);
         const row = i % rows;
+        let offX = 0;
+        let offY = 0;
+        if (isArtillery) {
+            offX = 0;
+            offY = 0;
+        } else if (isCavalry) {
+            offX = 1;
+            offY = -2;
+        } else {
+            offX = 1;
+            offY = 0;
+        }
+
         soldiers.push({
-            offsetX: (col * spacingX) - (totalW / 2),
-            offsetY: (row * spacingY) - (totalH / 2),
+            offsetX: (col * spacingX) - (totalW / 2) + offX,
+            offsetY: (row * spacingY) - (totalH / 2) + offY,
             hp: stats.hp, 
             maxHp: stats.hp, 
             alive: true,
+            animFrame: 0,
+            animTimer: 0,
+            state: "idle",
+            deathVariant: Math.floor(Math.random() * 4),
             deathRotation: Math.random() * Math.PI,
             spriteX: sX, 
             spriteY: sY, 
@@ -92,8 +117,17 @@ function createSquad(side, type, x, y) {
         aura: stats.aura || null, 
         lastShot: 0,
         collisionType: isArtillery ? "precise" : "group",
-        groupRadius: Math.max(totalW, totalH) / 2 + 15
+        hitbox: squadHitbox,
+        groupRadius: Math.max(squadHitbox.w, squadHitbox.h) / 2
     };
+}
+function isPointInSquad(px, py, sq) {
+    if (!sq.alive) return false;
+ 
+    const dx = Math.abs(px - sq.x);
+    const dy = Math.abs(py - sq.y);
+
+    return dx < (sq.hitbox.w / 2) && dy < (sq.hitbox.h / 2);
 }
 function spawnProjectile(attacker, target) {
     let p = {
@@ -137,6 +171,7 @@ function spawnProjectile(attacker, target) {
     }
 
     projectiles.push(p);
+    createEffect(attacker.x, attacker.y, 'smoke');
 }
 function updateProjectiles() {
     for (let i = projectiles.length - 1; i >= 0; i--) {
@@ -153,9 +188,7 @@ function updateProjectiles() {
             if (p.z < 15) {
                 squads.forEach(sq => {
                     if (sq.alive && sq.side !== p.side) {
-                        const distToSquad = Math.hypot(p.x - sq.x, p.y - sq.y);
-                        
-                        if (distToSquad < 30) {
+                        if (isPointInSquad(p.x, p.y, sq)) {
                             sq.soldiers.forEach(sol => {
                                 if (sol.alive) {
                                     const cos = Math.cos(sq.angle);
@@ -164,10 +197,26 @@ function updateProjectiles() {
                                     const sy = sq.y + (sol.offsetX * sin + sol.offsetY * cos);
 
                                     if (Math.hypot(p.x - sx, p.y - sy) < 8) {
-                                        sol.hp -= p.dmg * 0.5;
-                                        if (sol.hp <= 0) sol.alive = false;
-                                        p.speed *= 0.98;
-                                    }
+    sol.hp -= (p.state === "roll" ? 10 : p.dmg * 0.5);
+    
+    if (sol.hp <= 0 && sol.alive) {
+    sol.alive = false;
+    sol.state = "dead";
+    sol.animFrame = 0;
+    sol.animTimer = 0;
+if (typeof createEffect === "function") {
+    createEffect(sol.x, sol.y, 'blood');
+}
+
+
+   
+
+        sol.deathVariant = Math.floor(Math.random() * 2);
+        sol.killedBy = (p.type === "mortar_shell" || p.type === "cannonball") ? 'cannon' : 'bullet';
+        createEffect(sx, sy, 'blood'); 
+    }
+    p.speed *= 0.9; 
+}
                                 }
                             });
                         }
@@ -197,7 +246,7 @@ function updateProjectiles() {
 
             squads.forEach(sq => {
                 if (sq.alive && sq.side !== p.side) {
-                    if (Math.hypot(p.x - sq.x, p.y - sq.y) < 40) {
+                    if (isPointInSquad(p.x, p.y, sq)) {
                         sq.soldiers.forEach(sol => {
                             if (sol.alive) {
                                 const cos = Math.cos(sq.angle);
@@ -205,11 +254,25 @@ function updateProjectiles() {
                                 const sx = sq.x + (sol.offsetX * cos - sol.offsetY * sin);
                                 const sy = sq.y + (sol.offsetX * sin + sol.offsetY * cos);
 
-                                if (Math.hypot(p.x - sx, p.y - sy) < 7) {
-                                    sol.hp -= 10
-                                    if (sol.hp <= 0) sol.alive = false;
-                                    p.speed *= 0.9; 
-                                }
+                                if (Math.hypot(p.x - sx, p.y - sy) < 8) {
+    sol.hp -= (p.state === "roll" ? 10 : p.dmg * 0.5);
+    
+    if (sol.hp <= 0 && sol.alive) {
+    sol.alive = false;
+    sol.state = "dead";
+    sol.animFrame = 0;
+    sol.animTimer = 0;
+    if (typeof createEffect === "function") {
+    createEffect(sol.x, sol.y, 'blood');
+}
+
+
+        sol.deathVariant = Math.floor(Math.random() * 2);
+        sol.killedBy = (p.type === "mortar_shell" || p.type === "cannonball") ? 'cannon' : 'bullet';
+        createEffect(sx, sy, 'blood'); 
+    }
+    p.speed *= 0.9; 
+}
                             }
                         });
                     }
@@ -222,22 +285,42 @@ function updateProjectiles() {
 }
 
 function applySplashDamage(x, y, radius, damage, side) {
-    squads.forEach(s => {
-        if (!s.alive) return;
+    s.soldiers.forEach(sol => {
+
+    if (!sol.alive) {
+        sol.state = "dead";
+        return;
+    }
+
+        const halfW = s.hitbox.w / 2;
+        const halfH = s.hitbox.h / 2;
+        const closestX = Math.max(s.x - halfW, Math.min(x, s.x + halfW));
+        const closestY = Math.max(s.y - halfH, Math.min(y, s.y + halfH));
+        const distToRect = Math.hypot(x - closestX, y - closestY);
+        if (distToRect > radius) return;
+
         let hit = false;
-        s.soldiers.forEach(soldier => {
-            if (!soldier.alive) return;
-            const sWorldX = s.x + (soldier.offsetX * Math.cos(s.angle) - soldier.offsetY * Math.sin(s.angle));
-            const sWorldY = s.y + (soldier.offsetX * Math.sin(s.angle) + soldier.offsetY * Math.cos(s.angle));
+        s.soldiers.forEach(sol => {
+
+    if (!sol.alive) {
+        sol.state = "dead";
+        return;
+    }
+            
+            const cos = Math.cos(s.angle);
+            const sin = Math.sin(s.angle);
+            const sWorldX = s.x + (soldier.offsetX * cos - soldier.offsetY * sin);
+            const sWorldY = s.y + (soldier.offsetX * sin + soldier.offsetY * cos);
+            
             const d = Math.hypot(sWorldX - x, sWorldY - y);
 
             if (d <= radius) {
                 const falloff = 1 - (d / radius);
                 soldier.hp -= damage * falloff;
-                if (soldier.hp <= 0) soldier.alive = false;
                 hit = true;
             }
         });
+        
         if (hit && !s.soldiers.some(sol => sol.alive)) s.alive = false;
     });
 }
@@ -267,7 +350,8 @@ const ty = aimPoint ? aimPoint.y : (target ? target.y : attacker.y);
 
     const dist = target ? Math.hypot(target.x - attacker.x, target.y - attacker.y) : 999;
     const canUseBayonets = attacker.stats.hasBayonets || ["Pikemen", "Veteran Swordsmen", "Armored Knights"].includes(attacker.type);
-    const isMelee = canUseBayonets && dist < 40;
+    const colliding = areSquadsColliding(attacker, target);
+    const isMelee = canUseBayonets && colliding;
 
     if (attacker.isMoving && !isMelee) return;
 
@@ -326,19 +410,75 @@ const ty = aimPoint ? aimPoint.y : (target ? target.y : attacker.y);
     attacker.lastShot = performance.now() - (attacker.stats.reload - currentReload);
 
     if (["heal", "heal_mega", "heal_multi"].includes(attacker.aura)) {
-        let injuredSquads = squads.filter(s => 
-            s.side === attacker.side && s.alive && 
-            s.soldiers.some(sol => sol.alive && sol.hp < sol.maxHp) &&
-            Math.hypot(s.x - attacker.x, s.y - attacker.y) < attacker.stats.range
-        );
-        if (injuredSquads.length > 0) {
-            let limit = attacker.aura === "heal_multi" ? 3 : 1;
-            let healAmt = attacker.aura === "heal_mega" ? 15 : 8;
-            injuredSquads.slice(0, limit).forEach(sq => {
-                sq.soldiers.filter(sol => sol.alive).forEach(sol => {
+    let injuredSquads = squads.filter(s => {
+        if (s.side !== attacker.side || !s.alive) return false;
+        const halfW = s.hitbox.w / 2;
+        const halfH = s.hitbox.h / 2;
+        const closestX = Math.max(s.x - halfW, Math.min(attacker.x, s.x + halfW));
+        const closestY = Math.max(s.y - halfH, Math.min(attacker.y, s.y + halfH));
+        const distToRect = Math.hypot(attacker.x - closestX, attacker.y - closestY);
+        if (distToRect > attacker.stats.range) return false;
+        return s.soldiers.some(sol => sol.alive && sol.hp < sol.maxHp);
+    });
+
+    if (injuredSquads.length > 0) {
+        let limit = attacker.aura === "heal_multi" ? 3 : 1;
+        let healAmt = attacker.aura === "heal_mega" ? 15 : 8;
+
+        injuredSquads.slice(0, limit).forEach(sq => {
+            sq.soldiers.forEach(sol => {
+                if (sol.alive && sol.hp < sol.maxHp) {
                     sol.hp = Math.min(sol.maxHp, sol.hp + healAmt);
-                });
+                }
             });
-        }
+        });
     }
+}
+}
+function areSquadsColliding(s1, s2) {
+    if (!s1.hitbox || !s2.hitbox) return false;
+
+    const getCorners = (s) => {
+        const halfW = s.hitbox.w / 2;
+        const halfH = s.hitbox.h / 2;
+        const cos = Math.cos(s.angle);
+        const sin = Math.sin(s.angle);
+        
+        return [
+            { x: s.x + (-halfW * cos - -halfH * sin), y: s.y + (-halfW * sin + -halfH * cos) },
+            { x: s.x + (halfW * cos - -halfH * sin),  y: s.y + (halfW * sin + -halfH * cos) },
+            { x: s.x + (halfW * cos - halfH * sin),   y: s.y + (halfW * sin + halfH * cos) },
+            { x: s.x + (-halfW * cos - halfH * sin),  y: s.y + (-halfW * sin + halfH * cos) }
+        ];
+    };
+
+    const corners1 = getCorners(s1);
+    const corners2 = getCorners(s2);
+
+    const axes = [];
+    [corners1, corners2].forEach(corners => {
+        for (let i = 0; i < 2; i++) {
+            const p1 = corners[i];
+            const p2 = corners[i + 1];
+            axes.push({ x: -(p2.y - p1.y), y: p2.x - p1.x });
+        }
+    });
+
+    for (let axis of axes) {
+        const project = (corners) => {
+            let min = Infinity, max = -Infinity;
+            corners.forEach(p => {
+                const dot = p.x * axis.x + p.y * axis.y;
+                min = Math.min(min, dot);
+                max = Math.max(max, dot);
+            });
+            return { min, max };
+        };
+
+        const p1 = project(corners1);
+        const p2 = project(corners2);
+
+        if (p1.max < p2.min || p2.max < p1.min) return false;
+    }
+    return true;
 }
