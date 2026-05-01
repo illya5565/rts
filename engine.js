@@ -24,10 +24,6 @@ function update(time) {
     if (typeof updateProjectiles === "function") {
         updateProjectiles();
     }
-    
-    if (typeof updateParticles === "function") {
-        updateAndDrawParticles();
-    }
 
     squads.forEach(s => {
     if (!s.alive) return;
@@ -45,6 +41,8 @@ function update(time) {
             if (other === s || !other.alive) return false;
             return areSquadsColliding(s, other);
         });
+
+        
         if (isCollidingAny) moveSpeed *= 0.5;
 
         if (s.state === 1) {
@@ -103,9 +101,13 @@ function update(time) {
 
 s.soldiers.forEach(sol => {
     if (!sol.alive) {
+    if (sol.state !== "dead") {
         sol.state = "dead";
-        return;
+        sol.animFrame = 0;
+        sol.animTimer = 0;
     }
+    return;
+}
 
     if (enemySquad) {
         const cos = Math.cos(s.angle);
@@ -119,18 +121,9 @@ let dist = Math.hypot(enemySquad.x - solX, enemySquad.y - solY);
         if (dist <= s.stats.range) {
             sol.state = "shoot";
             sol.isMoving = false;
-            
-            const now = performance.now();
-            if (!sol.lastShot || now - sol.lastShot > s.stats.reload) {
-                if (typeof createProjectile === "function") {
-                    createProjectile(sol, enemySquad);
-                    sol.lastShot = now;
-                    if (typeof createEffect === "function") createEffect(sol.x, sol.y, 'smoke');
-                }
-            }
         } else {
-    sol.state = "move";
-}
+            sol.state = "move";
+        }
     }
 });
 
@@ -154,6 +147,7 @@ let dist = Math.hypot(enemySquad.x - solX, enemySquad.y - solY);
                 } else {
                     s.angle = angleToPoint;
                 }
+                s.isMoving = false;
                 moveTarget = null;
             }
 
@@ -254,10 +248,11 @@ let dist = Math.hypot(enemySquad.x - solX, enemySquad.y - solY);
                         s.soldiers.forEach(sol => sol.lastShot = now);
                     }
                 }
-            }
-        }
-    });
-    
+            }}
+        const alive = s.soldiers.some(sol => sol.alive);
+        if (!alive) s.alive = false;
+});
+    squads = squads.filter(s => s.alive);
 }
 function updateCamera() {
     if (keys['KeyW']) camera.y -= camera.speed;

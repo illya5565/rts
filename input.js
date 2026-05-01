@@ -148,3 +148,24 @@ window.addEventListener('keydown', (e) => {
 window.addEventListener('keyup', (e) => { 
     keys[e.code] = false; 
 });
+
+const controlGroups = {};
+
+const groupKeys = {
+    'Digit1': 1, 'Digit2': 2, 'Digit3': 3, 'Digit4': 4, 'Digit5': 5,
+    'Digit6': 6, 'Digit7': 7, 'Digit8': 8, 'Digit9': 9, 'Digit0': 0
+};
+
+window.addEventListener('keydown', (e) => {
+    if (!(e.code in groupKeys)) return;
+    const g = groupKeys[e.code];
+    if (e.ctrlKey) {
+        e.preventDefault();
+        controlGroups[g] = selectedSquads.filter(sq => sq.alive);
+    } else if (!isPlacementPhase) {
+        if (controlGroups[g] && controlGroups[g].length > 0) {
+            selectedSquads = controlGroups[g].filter(sq => sq.alive);
+            if (typeof draw === "function") draw();
+        }
+    }
+});
