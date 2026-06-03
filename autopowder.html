@@ -4,40 +4,118 @@
     <meta charset="UTF-8">
     <title>little soldiers - big problems</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="icon" href="data:,">
 </head>
 <body>
-<div id="game-window" style="width: 1300px;"> <div style="display: flex; position: relative;">
+
+<div id="main-menu" class="overlay-menu">
+    <div class="menu-content">
+        <h1 id="menu-title">LITTLE SOLDIERS</h1>
+        <p id="menu-subtitle">BIG PROBLEMS</p>
+
+        <div id="default-buttons" class="menu-buttons">
+            <button onclick="Audio.playButton();startGame()">PLAY</button>
+            <button onclick="Audio.playButton();showSettingsPanel()">SETTINGS</button>
+        </div>
+
+        <div id="settings-panel" style="display:none;">
+            <div class="settings-grid">
+                <div>UP:</div>      <button id="btn-up"      onclick="Audio.playButton();startRebind('up')">W</button>
+                <div>DOWN:</div>    <button id="btn-down"    onclick="Audio.playButton();startRebind('down')">S</button>
+                <div>LEFT:</div>    <button id="btn-left"    onclick="Audio.playButton();startRebind('left')">A</button>
+                <div>RIGHT:</div>   <button id="btn-right"   onclick="Audio.playButton();startRebind('right')">D</button>
+                <div>AUTO:</div>    <button id="btn-auto"    onclick="Audio.playButton();startRebind('auto')">Q</button>
+                <div>INSPECT:</div> <button id="btn-inspect" onclick="Audio.playButton();startRebind('inspect')">E</button>
+            </div>
+            <br>
+            <button onclick="Audio.playButton();hideSettingsPanel()">BACK</button>
+        </div>
+    </div>
+</div>
+
+<div id="info-menu" class="overlay-menu" style="display:none; background:rgba(0,0,0,0.92);">
+    <div style="width:480px; display:flex; flex-direction:column; align-items:center; font-family:monospace; color:#eee;">
+        <h1 style="color:#ffd700; font-size:32px; margin-bottom:16px; letter-spacing:2px;">LITTLE SOLDIERS</h1>
+        <div id="info-scroll" style="width:100%; max-height:340px; overflow-y:auto; text-align:center; font-size:13px; line-height:1.8; color:#ccc; padding:0 12px; box-sizing:border-box;">
+        </div>
+        <button onclick="Audio.playButton();document.getElementById('info-menu').style.display='none'" style="margin-top:20px; padding:8px 32px; font-size:15px; background:#333; color:#ffd700; border:1px solid #ffd700; cursor:pointer;">BACK</button>
+    </div>
+</div>
+
+<div id="result-overlay" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:6000; justify-content:center; align-items:center;">
+    <div style="background:#2a2a2a; border:2px solid #888; padding:32px 48px; text-align:center; font-family:monospace;">
+        <div id="result-text"    style="font-size:36px; font-weight:bold; color:#ffd700; margin-bottom:8px;"></div>
+        <div id="result-subtext" style="font-size:14px; color:#aaa; margin-bottom:24px;"></div>
+        <div id="result-buttons" style="display:flex; gap:16px; justify-content:center;"></div>
+    </div>
+</div>
+
+<div id="game-window" style="width:1300px; position:relative;">
+    <div style="display:flex; position:relative;">
         <canvas id="gameCanvas" width="1300" height="450"></canvas>
-        
         <div id="tree-menu">
-            <button id="close-tree-btn" onclick="toggleTree()">X</button>
+            <button id="close-tree-btn" onclick="Audio.playButton();toggleTree()">X</button>
             <div id="tree-container"></div>
         </div>
     </div>
-    
-<div id="ui-panel">
-    <div id="gold-display">Gold: 0 | Units: 0/20</div>
-    <div id="shop-controls"></div>
-    <div id="bottom-row">
-        <div id="main-actions">
-            <button id="start-btn" onclick="startBattle()">START</button>
-            <button onclick="toggleTree()">RESEARCH</button>
+
+    <div id="ui-panel">
+        <div id="gold-display">Gold: 0 | Units: 0/20</div>
+        <div id="shop-controls"></div>
+        <div id="bottom-row">
+            <div id="main-actions">
+                <button id="start-btn" onclick="Audio.playButton();startBattle()">START</button>
+                <button onclick="Audio.playButton();toggleTree()">RESEARCH</button>
+            </div>
+            <div id="unit-info-display"></div>
+            <button onclick="Audio.playButton();document.getElementById('info-menu').style.display='flex'"
+                style="padding:6px 14px; font-size:13px; background:#222; color:#ffd700; border:1px solid #ffd700; cursor:pointer; margin-left:auto;">
+                I
+            </button>
         </div>
-        <div id="unit-info-display"></div>
     </div>
 </div>
-</div>
-</div>
-</div>
 
+<script>
+    function startGame() {
+        document.getElementById("main-menu").style.display = "none";
+        if (typeof updateGoldDisplay === "function") updateGoldDisplay();
+    }
+    function showSettingsPanel() {
+        document.getElementById("settings-panel").style.display = "block";
+        document.getElementById("default-buttons").style.display = "none";
+        document.getElementById("menu-title").innerText = "LITTLE SOLDIERS";
+        document.getElementById("menu-subtitle").style.visibility = "hidden";
+    }
+    function hideSettingsPanel() {
+        document.getElementById("settings-panel").style.display = "none";
+        document.getElementById("default-buttons").style.display = "flex";
+        document.getElementById("menu-subtitle").style.visibility = "visible";
+    }
+
+    let isRebinding = null;
+    function startRebind(action) {
+        isRebinding = action;
+        document.getElementById("btn-"+action).innerText = "...";
+    }
+    window.addEventListener("keydown", e => {
+        if (!isRebinding) return;
+        if (typeof config !== "undefined") config[isRebinding] = e.code;
+        document.getElementById("btn-"+isRebinding).innerText = e.code.replace("Key","");
+        isRebinding = null;
+    });
+</script>
+
+<script src="audio.js"></script>
 <script src="state.js"></script>
 <script src="units.js"></script>
+<script src="Soldier.js"></script>
+<script src="Squad.js"></script>
+<script src="Projectile.js"></script>
 <script src="tree.js"></script>
-
 <script src="render.js"></script>
 <script src="economy.js"></script>
-
-<script src="enginecombat.js"></script>
+<script src="combat.js"></script>
 <script src="engine.js"></script>
 <script src="input.js"></script>
 </body>

@@ -1,11 +1,20 @@
 function startBattle() {
-    if (playerArmy.length === 0) return;
+    if (!playerArmy.length) return;
     isPlacementPhase = false;
     document.getElementById("start-btn").disabled = true;
-    
-    for(let i = 0; i < currentWave + 1; i++) {
-        squads.push(createSquad("enemy", "Line Infantry", 1100, 50 + (i * 100)));
+
+    squads.forEach(sq => {
+        if (sq.side !== "player") return;
+        sq.manualTarget = null; sq.attackOrder = null; sq.isGuarding = false;
+    });
+
+    const enemyCount = currentWave + 1;
+    const spacing    = Math.floor(worldHeight / (enemyCount + 1));
+    for (let i = 0; i < enemyCount; i++) {
+        squads.push(createSquad("enemy", "Line Infantry", worldWidth - 100, spacing * (i + 1)));
     }
+
+    if (typeof Audio !== "undefined") Audio.playBattleMusic();
     requestAnimationFrame(gameLoop);
 }
 
@@ -13,301 +22,227 @@ function gameLoop(time) {
     updateCamera();
     update(time);
     draw();
-    if (!checkWinner()) {
-        requestAnimationFrame(gameLoop);
-    }
+    if (!checkWinner()) requestAnimationFrame(gameLoop);
 }
 
-function update(time) {
+function update() {
     if (isPlacementPhase) return;
-
-    if (typeof updateProjectiles === "function") {
-        updateProjectiles();
+    updateProjectiles();
+    for (const sq of squads) {
+        if (!sq.alive) continue;
+        sq.tickMorale();
+        _updateSquad(sq);
     }
-
-    squads.forEach(s => {
-    if (!s.alive) return;
-
-        const now = performance.now();
-        const supportTypes = ["Commander", "Ensign", "Medic", "Mounted Commander", "High Officer", "Field Surgeon", "Medical Squad"];
-        const isSupport = supportTypes.includes(s.type);
-
-        s.deathTimes = (s.deathTimes || []).filter(t => now - t < 5000);
-        const aliveCount = s.soldiers.filter(sol => sol.alive).length;
-        const initial = s.initialCount || 40;
-
-        let moveSpeed = s.stats.speed;
-        const isCollidingAny = squads.some(other => {
-            if (other === s || !other.alive) return false;
-            return areSquadsColliding(s, other);
-        });
-
-        
-        if (isCollidingAny) moveSpeed *= 0.5;
-
-        if (s.state === 1) {
-            const deadRecently = s.deathTimes.length;
-            const deadTotal = initial - aliveCount;
-            if (deadRecently >= initial * 0.4 || deadTotal >= initial * 0.6) {
-                s.state = 2;
-                s.targetPoint = null;
-                s.manualTarget = null;
-                s.attackOrder = null;
-                s.isGuarding = false; 
-            }
-        }
-
-        let moveTarget = null;
-        let isManualOrder = false;
-
-        if (s.state === 2) {
-            const retreatX = (s.side === "player" ? 0 : worldWidth);
-            moveTarget = { x: retreatX, y: s.y };
-            if (Math.abs(s.x - retreatX) < 50) {
-                const recoverCount = Math.floor(initial * 0.2);
-                let recovered = 0;
-                s.soldiers.forEach(sol => {
-                    if (!sol.alive && recovered < recoverCount) {
-                        sol.alive = true;
-                        sol.state = "idle";
-                        sol.hp = sol.maxHp;
-                        recovered++;
-                    }
-                });
-                s.state = 3;
-            }
-        } else {
-            if (!isAutoMode && s.side === "player" && s.manualTarget) {
-                moveTarget = s.manualTarget;
-                isManualOrder = true;
-                s.isGuarding = false;
-            } else if (s.attackOrder && s.attackOrder.alive) {
-                moveTarget = s.attackOrder; 
-                s.isGuarding = false;
-            } else if (s.isGuarding) {
-                moveTarget = null; 
-            } else {
-                let enemies = squads.filter(t => t.side !== s.side && t.alive);
-                let combatAllies = squads.filter(a => a.side === s.side && a.alive && a !== s && !supportTypes.includes(a.type));
-
-                if (isSupport && combatAllies.length > 0) {
-                    moveTarget = combatAllies.reduce((p, c) => Math.hypot(c.x-s.x, c.y-s.y) < Math.hypot(p.x-s.x, p.y-s.y) ? c : p);
-                } else if (enemies.length > 0) {
-                    moveTarget = enemies.reduce((p, c) => Math.hypot(c.x-s.x, c.y-s.y) < Math.hypot(p.x-s.x, p.y-s.y) ? c : p);
-                }
-            }
-        }
-        let enemySquad = squads.find(target => target.side !== s.side && target.alive);
-
-s.soldiers.forEach(sol => {
-    if (!sol.alive) {
-    if (sol.state !== "dead") {
-        sol.state = "dead";
-        sol.animFrame = 0;
-        sol.animTimer = 0;
-    }
-    return;
+    squads = squads.filter(s => s.alive && !s.isFullyDead);
 }
 
-    if (enemySquad) {
-        const cos = Math.cos(s.angle);
-const sin = Math.sin(s.angle);
-
-const solX = s.x + (sol.offsetX * cos - sol.offsetY * sin);
-const solY = s.y + (sol.offsetX * sin + sol.offsetY * cos);
-
-let dist = Math.hypot(enemySquad.x - solX, enemySquad.y - solY);
-
-        if (dist <= s.stats.range) {
-            sol.state = "shoot";
-            sol.isMoving = false;
-        } else {
-            sol.state = "move";
-        }
+function _updateSquad(sq) {
+    if (isAutoMode || sq.side !== "player") _assignAutoTarget(sq);
+    _moveSquad(sq, sq.getMoveTarget());
+    for (const sol of sq.soldiers) {
+        if (!sol.alive) continue;
+        if (sq.isMoving) sol.setAnimState("move");
+        else if (sol.state !== "shoot") sol.setAnimState("idle");
     }
-});
-
-        if (moveTarget) {
-            let dx = moveTarget.x - s.x;
-            let dy = moveTarget.y - s.y;
-            let dist = Math.hypot(dx, dy);
-            
-            let stopDist = (s.state === 2) ? 10 : (isManualOrder ? 10 : (isSupport ? 70 : s.stats.range - 40));
-            let currentRotSpeed = s.stats.rotSpeed || 0.05;
-
-            const isTouchingTarget = (moveTarget.hitbox) ? areSquadsColliding(s, moveTarget) : false;
-
-            if (s.targetPoint && s.state !== 2) {
-                let angleToPoint = Math.atan2(s.targetPoint.y - s.y, s.targetPoint.x - s.x);
-                let diff = angleToPoint - s.angle;
-                while (diff < -Math.PI) diff += Math.PI * 2;
-                while (diff > Math.PI) diff -= Math.PI * 2;
-                if (Math.abs(diff) > currentRotSpeed) {
-                    s.angle += (diff > 0 ? 1 : -1) * currentRotSpeed;
-                } else {
-                    s.angle = angleToPoint;
-                }
-                s.isMoving = false;
-                moveTarget = null;
-            }
-
-            if (moveTarget) {
-                if (isTouchingTarget && s.side !== moveTarget.side) {
-                    s.isMoving = false;
-                } else if (dist > stopDist) {
-                    let targetAngle = Math.atan2(dy, dx);
-                    let diff = targetAngle - s.angle;
-                    while (diff < -Math.PI) diff += Math.PI * 2;
-                    while (diff > Math.PI) diff -= Math.PI * 2;
-
-                    if (Math.abs(diff) > currentRotSpeed) {
-                        s.angle += (diff > 0 ? 1 : -1) * currentRotSpeed;
-                        s.isMoving = false;
-                    } else {
-                        s.angle = targetAngle;
-                        s.isMoving = true;
-                        let speed = moveSpeed * (s.state === 2 ? 1.6 : 1.0);
-                        if (s.state !== 2) {
-                            let cmd = squads.find(b => b.side === s.side && b.alive && b.aura?.includes("all_stats") && Math.hypot(b.x-s.x, b.y-s.y) < 200);
-                            if (cmd) speed *= (cmd.aura === "all_stats_mega" ? 1.4 : 1.2);
-                        }
-                        s.x += Math.cos(s.angle) * speed;
-                        s.y += Math.sin(s.angle) * speed;
-                    }
-                } else {
-                    s.isMoving = false;
-                    if (isManualOrder) {
-                        if (s.targetArrivalAngle !== undefined) {
-                            let diffArrival = s.targetArrivalAngle - s.angle;
-                            while (diffArrival < -Math.PI) diffArrival += Math.PI * 2;
-                            while (diffArrival > Math.PI) diffArrival -= Math.PI * 2;
-                            if (Math.abs(diffArrival) > currentRotSpeed) {
-                                s.angle += (diffArrival > 0 ? 1 : -1) * currentRotSpeed;
-                            } else {
-                                s.angle = s.targetArrivalAngle;
-                                s.manualTarget = null;
-                                s.isGuarding = true;
-                                delete s.targetArrivalAngle;
-                            }
-                        } else {
-                            s.manualTarget = null;
-                            s.isGuarding = true;
-                        }
-                    }
-                }
-            }
-        } else {
-            s.isMoving = false;
-        }
-
-        if (s.state !== 2) {
-            const isArtillery = s.stats.bulletType !== undefined;
-            const reloadTime = s.stats.reload || 2000;
-
-            if (now - (s.lastShot || 0) > reloadTime) {
-                let targetX = null, targetY = null;
-                let targetSquad = null;
-
-                if (s.targetPoint) {
-                    targetX = s.targetPoint.x;
-                    targetY = s.targetPoint.y;
-                } else {
-                    let enemies = squads.filter(t => t.side !== s.side && t.alive);
-                    if (enemies.length > 0) {
-                        let nearest = enemies.reduce((p, c) => Math.hypot(c.x - s.x, c.y - s.y) < Math.hypot(p.x - s.x, p.y - s.y) ? c : p);
-                        let dist = Math.hypot(nearest.x - s.x, nearest.y - s.y);
-                        
-                        if (dist <= (s.stats.range + 50)) {
-                            targetSquad = nearest;
-                            let sol = nearest.soldiers.find(v => v.alive);
-                            if (sol) {
-                                const cos = Math.cos(nearest.angle);
-                                const sin = Math.sin(nearest.angle);
-                                targetX = nearest.x + (sol.offsetX * cos - sol.offsetY * sin);
-                                targetY = nearest.y + (sol.offsetX * sin + sol.offsetY * cos);
-                            } else {
-                                targetX = nearest.x;
-                                targetY = nearest.y;
-                            }
-                        }
-                    }
-                }
-
-                if (targetX !== null) {
-                    const angleToTarget = Math.atan2(targetY - s.y, targetX - s.x);
-                    let angleDiff = Math.abs(s.angle - angleToTarget);
-                    while (angleDiff > Math.PI) angleDiff = Math.PI * 2 - angleDiff;
-
-                    if (angleDiff < 0.8) { 
-                        if (isArtillery) {
-                            if (typeof spawnProjectile === "function") spawnProjectile(s, { x: targetX, y: targetY });
-                        } else {
-                            if (typeof shootSquad === "function" && targetSquad) shootSquad(s, targetSquad, { x: targetX, y: targetY });
-                        }
-                        s.lastShot = now;
-                        s.soldiers.forEach(sol => sol.lastShot = now);
-                    }
-                }
-            }}
-        const alive = s.soldiers.some(sol => sol.alive);
-        if (!alive) s.alive = false;
-});
-    squads = squads.filter(s => s.alive);
+    _tryShoot(sq);
+    if (sq.isFullyDead) sq.alive = false;
 }
+
+function _assignAutoTarget(sq) {
+    const enemies = squads.filter(t => t.side !== sq.side && t.alive);
+    const allies  = squads.filter(a => a.side === sq.side && a.alive && a !== sq && !a.isSupport);
+    const target  = (sq.isSupport && allies.length) ? _nearest(sq, allies)
+                  : enemies.length ? _nearest(sq, enemies) : null;
+    if (target) { sq.attackOrder = target; sq.manualTarget = null; }
+}
+
+function _moveSquad(sq, moveTarget) {
+    if (!moveTarget) { sq.isMoving = false; return; }
+
+    const dist   = Math.hypot(moveTarget.x - sq.x, moveTarget.y - sq.y);
+    const isMan  = !!moveTarget.isManual;
+    const stopD  = isMan ? 10 : (sq.isSupport ? 70 : Math.max(10, sq.stats.range - 40));
+
+    if (sq.targetPoint) {
+        _rotateToward(sq, sq.targetPoint.x, sq.targetPoint.y);
+        sq.isMoving = false;
+        return;
+    }
+
+    if (moveTarget.hitbox && moveTarget.side !== sq.side && areSquadsColliding(sq, moveTarget)) {
+        sq.isMoving = false; return;
+    }
+
+    if (dist <= stopD) {
+        sq.isMoving = false;
+        if (isMan) {
+            if (sq.targetArrivalAngle !== undefined) {
+                if (_rotateToward(sq, null, null, sq.targetArrivalAngle)) {
+                    sq.manualTarget = null; sq.isGuarding = true; delete sq.targetArrivalAngle;
+                }
+            } else { sq.manualTarget = null; sq.isGuarding = true; }
+        }
+        return;
+    }
+
+    if (!_rotateToward(sq, moveTarget.x, moveTarget.y)) { sq.isMoving = false; return; }
+
+    sq.isMoving = true;
+    let speed   = sq.effectiveSpeed;
+
+    if (squads.some(o => o !== sq && o.alive && areSquadsColliding(sq, o))) speed *= 0.5;
+
+    const cmd = squads.find(b =>
+        b.side === sq.side && b.alive && b.aura?.includes("all_stats") &&
+        Math.hypot(b.x-sq.x, b.y-sq.y) < 200
+    );
+    if (cmd) speed *= (cmd.aura === "all_stats_mega" ? 1.4 : 1.2);
+
+    sq.x = Math.max(0, Math.min(worldWidth,  sq.x + Math.cos(sq.angle) * speed));
+    sq.y = Math.max(0, Math.min(worldHeight, sq.y + Math.sin(sq.angle) * speed));
+}
+
+function _rotateToward(sq, tx, ty, explicitAngle) {
+    const targetAngle = explicitAngle !== undefined ? explicitAngle : Math.atan2(ty - sq.y, tx - sq.x);
+    let diff = targetAngle - sq.angle;
+    while (diff < -Math.PI) diff += Math.PI*2;
+    while (diff >  Math.PI) diff -= Math.PI*2;
+    if (Math.abs(diff) <= sq.rotSpeed) { sq.angle = targetAngle; return true; }
+    sq.angle += (diff > 0 ? 1 : -1) * sq.rotSpeed;
+    return false;
+}
+
+function _tryShoot(sq) {
+    if (!sq.canFight) return;
+    if (performance.now() - sq.lastShot < sq.stats.reload) return;
+
+    let tx = null, ty = null, tSq = null;
+
+    if (sq.targetPoint) {
+        tx = sq.targetPoint.x; ty = sq.targetPoint.y;
+    } else {
+        const enemies = squads.filter(t => t.side !== sq.side && t.alive);
+        if (!enemies.length) return;
+        const near = _nearest(sq, enemies);
+        if (Math.hypot(near.x-sq.x, near.y-sq.y) > sq.stats.range + 50) return;
+        tSq = near;
+        const sol = near.soldiers.find(s => s.alive);
+        if (sol) { const wp = sol.worldPos(near.x, near.y, Math.cos(near.angle), Math.sin(near.angle)); tx = wp.x; ty = wp.y; }
+        else     { tx = near.x; ty = near.y; }
+    }
+
+    if (tx === null) return;
+    let diff = Math.abs(sq.angle - Math.atan2(ty-sq.y, tx-sq.x));
+    if (diff > Math.PI) diff = Math.PI*2 - diff;
+    if (diff > 0.8) return;
+
+    shootSquad(sq, tSq, { x: tx, y: ty });
+}
+
 function updateCamera() {
-    if (keys['KeyW']) camera.y -= camera.speed;
-    if (keys['KeyS']) camera.y += camera.speed;
-    if (keys['KeyA']) camera.x -= camera.speed;
-    if (keys['KeyD']) camera.x += camera.speed;
-
-    camera.x = Math.max(0, Math.min(camera.x, worldWidth - canvas.width));
+    if (keys[config.up])    camera.y -= camera.speed;
+    if (keys[config.down])  camera.y += camera.speed;
+    if (keys[config.left])  camera.x -= camera.speed;
+    if (keys[config.right]) camera.x += camera.speed;
+    camera.x = Math.max(0, Math.min(camera.x, worldWidth  - canvas.width));
     camera.y = Math.max(0, Math.min(camera.y, worldHeight - canvas.height));
 }
 
 function checkWinner() {
     if (isPlacementPhase) return false;
-    
-    let pAlive = squads.some(s => s.side === "player" && s.alive);
-    let eAlive = squads.some(s => s.side === "enemy" && s.alive);
-
-    if (!eAlive && squads.length > 0) {
-        playerGold += 100 + (currentWave * 20);
-        currentWave++;
-        resetToMenu();
-        placementLoop();
-        updateGoldDisplay();
-        return true;
-    } 
-    
-    if (!pAlive && squads.length > 0) {
-        location.reload(); 
-        return true;
-    }
+    const pAlive = squads.some(s => s.side === "player" && s.alive);
+    const eAlive = squads.some(s => s.side === "enemy"  && s.alive);
+    if (!eAlive) { playerGold += 100 + currentWave*20; currentWave++; showResult("WIN"); return true; }
+    if (!pAlive) { showResult("LOSE"); return true; }
     return false;
 }
-function resetToMenu() {
-    isPlacementPhase = true;
-    selectedSquads = [];
-    squads = [];
-    document.getElementById("start-btn").disabled = false;
-    squads.forEach(s => {
-        if (s.side === "player") s.manualTarget = null;
-    });
+
+function showResult(result) {
+    if (typeof Audio !== "undefined") { if (result === "WIN") Audio.playWin(); else Audio.playLose(); }
+    const overlay = document.getElementById("result-overlay");
+    document.getElementById("result-text").innerText    = result === "WIN" ? "WIN" : "LOSE";
+    document.getElementById("result-subtext").innerText = result === "WIN"
+        ? `wawe ${currentWave-1} complete. +${100 + (currentWave-1)*20} gold`
+        : "defeat";
+
+    const btns = document.getElementById("result-buttons");
+    btns.innerHTML = "";
+    if (result === "WIN") {
+        const b = document.createElement("button");
+        b.innerText = "NEXT WAVE";
+        b.style.cssText = "padding:10px 28px;font-size:15px;background:#1e419b;color:#fff;border:2px solid #4466cc;cursor:pointer;";
+        b.onclick = () => { Audio.playButton(); resultNextWave(); };
+        btns.appendChild(b);
+    } else {
+        const b = document.createElement("button");
+        b.innerText = "RESTART";
+        b.style.cssText = "padding:10px 28px;font-size:15px;background:#6b1e1e;color:#fff;border:2px solid #cc4444;cursor:pointer;";
+        b.onclick = () => { Audio.playButton(); resultRestart(); };
+        btns.appendChild(b);
+    }
+    const bMenu = document.createElement("button");
+    bMenu.innerText = "MAIN MENU";
+    bMenu.style.cssText = "padding:10px 28px;font-size:15px;background:#444;color:#fff;border:2px solid #888;cursor:pointer;";
+    bMenu.onclick = () => { Audio.playButton(); resultMainMenu(); };
+    btns.appendChild(bMenu);
+
+    overlay.style.display = "flex";
 }
 
-window.addEventListener('keydown', (e) => {
-    if (e.code === 'KeyQ') {
-        isAutoMode = !isAutoMode;
-    }
+function resultNextWave() {
+    document.getElementById("result-overlay").style.display = "none";
+    _resetToPlacement();
+}
+
+function resultRestart() {
+    document.getElementById("result-overlay").style.display = "none";
+    playerGold  = 1000;
+    currentWave = 1;
+    _resetSkillTree();
+    _resetToPlacement();
+}
+
+function _resetSkillTree() {
+    SkillTree.nodes.forEach(n => { n.bought = false; });
+    if (typeof renderTree === "function") renderTree();
+    if (typeof renderShop === "function") renderShop();
+}
+
+function resultMainMenu() { location.reload(); }
+
+function _resetToPlacement() {
+    isPlacementPhase = true;
+    selectedSquads   = [];
+    squads           = [];
+    playerArmy       = [];
+    document.getElementById("start-btn").disabled = false;
+    updateGoldDisplay();
+    if (typeof Audio !== "undefined") Audio.playMenuMusic();
+    placementLoop();
+}
+
+window.addEventListener("keydown", e => {
+    if (e.code !== config.auto) return;
+    isAutoMode = !isAutoMode;
+    if (isAutoMode) squads.forEach(sq => {
+        if (sq.side !== "player") return;
+        sq.manualTarget = null; sq.attackOrder = null; sq.isGuarding = false;
+    });
 });
+
+function placementLoop() {
+    if (!isPlacementPhase) return;
+    updateCamera();
+    draw();
+    requestAnimationFrame(placementLoop);
+}
+
+function _nearest(from, list) {
+    return list.reduce((b, c) =>
+        Math.hypot(c.x-from.x, c.y-from.y) < Math.hypot(b.x-from.x, b.y-from.y) ? c : b
+    );
+}
 
 renderShop();
 updateGoldDisplay();
-function placementLoop() {
-    if (isPlacementPhase) {
-        updateCamera();
-        draw();
-        requestAnimationFrame(placementLoop);
-    }
-}
 placementLoop();

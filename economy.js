@@ -34,6 +34,7 @@ function renderShop() {
                     btn.innerText = `${unitName} (${stats.cost}G)`;
                     
                     btn.onclick = () => {
+                        if (typeof Audio !== "undefined") Audio.playButton();
                         selectedUnitType = unitName;
                         renderShop(); 
                     };

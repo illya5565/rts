@@ -86,6 +86,7 @@ function renderTree() {
         };
 
         div.onclick = () => {
+            if (typeof Audio !== "undefined") Audio.playButton();
             const parent = allNodes.find(n => n.id === node.req);
             if (!node.bought && !isBlocked && playerGold >= node.cost && (!parent || parent.bought)) {
                 playerGold -= node.cost;
