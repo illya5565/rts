@@ -4,7 +4,7 @@ const SkillTree = {
         { id: "inf_vet_sword", unlock: "Veteran Swordsmen", label: "Vet. Swords", cost: 70, x: 300, y: 120, bought: false, req: "core" },
         { id: "inf_vet_fire", unlock: "Fusiliers", label: "Fusiliers", cost: 70, x: 470, y: 120, bought: false, req: "core" },
         { id: "inf_pike", unlock: "Pikemen", label: "Pikemen", cost: 100, x: 250, y: 40, bought: false, req: "inf_vet_sword", conflicts: "inf_knight" },
-        { id: "inf_knight", unlock: "Armored Knights", label: "Knights", cost: 180, x: 350, y: 40, bought: false, req: "inf_vet_sword", conflicts: "inf_pike" },
+        { id: "inf_knight", unlock: "Knights", label: "Knights", cost: 180, x: 350, y: 40, bought: false, req: "inf_vet_sword", conflicts: "inf_pike" },
         { id: "inf_gren", unlock: "Grenadiers", label: "Grenadiers", cost: 130, x: 420, y: 40, bought: false, req: "inf_vet_fire", conflicts: "inf_elite" },
         { id: "inf_elite", unlock: "Elite Guard", label: "Imperial Guard", cost: 220, x: 520, y: 40, bought: false, req: "inf_vet_fire", conflicts: "inf_gren" },
         { id: "cav_base", label: "Stables", cost: 100, x: 530, y: 200, bought: false, req: "core" },
@@ -23,7 +23,97 @@ const SkillTree = {
         { id: "art_mortar", unlock: "Mortar", label: "Mortars", cost: 240, x: 300, y: 400, bought: false, req: "art_base" },
         { id: "art_organ", unlock: "Multi-barrel", label: "Organ Gun", cost: 310, x: 355, y: 400, bought: false, req: "art_base" },
         { id: "art_howitzer", unlock: "Howitzer", label: "Howitzer", cost: 380, x: 415, y: 400, bought: false, req: "art_base" },
-        { id: "art_6lb", unlock: "6lb Cannon", label: "Light Battery", cost: 100, x: 470, y: 400, bought: false, req: "art_base" }]};
+        { id: "art_6lb", unlock: "6lb Cannon", label: "Light Battery", cost: 100, x: 470, y: 400, bought: false, req: "art_base" }
+    ]
+};
+
+let currentTooltip = null;
+
+const unitDescriptions = {
+    "Line Infantry":     "Standard line infantry, balanced stats.",
+    "Fusiliers":         "Light infantry with improved firepower and range.",
+    "Grenadiers":        "Assault infantry, shorter range but heavy armor and high health.",
+    "Elite Guard":       "Crack marksmen with extreme range and damage, but fragile.",
+    "Veteran Swordsmen": "Seasoned melee fighters, good speed and damage.",
+    "Knights":           "Heavy shock infantry, massive health and damage, slow.",
+    "Pikemen":           "Polearm infantry, long reach — effective against cavalry.",
+    "Hussars":           "Light cavalry, very fast — perfect for flanking.",
+    "Cuirassiers":       "Heavy armored cavalry, tough and hard-hitting.",
+    "Dragoon":           "Mounted infantry, can shoot from horseback.",
+    "Horse Jager":       "Mounted marksmen, long range and accurate.",
+    "Ensign":            "Carries regimental flag, boosts nearby accuracy.",
+    "Medic":             "Slowly heals a single friendly squad.",
+    "Field Surgeon":     "Powerful healing for one squad.",
+    "Medical Squad":     "Group of medics, heals multiple squads at once.",
+    "Commander":         "Inspires troops, increases all stats nearby.",
+    "Mounted Commander": "Commander on horseback, mobile aura.",
+    "High Officer":      "Senior officer, powerful all-stat boost aura.",
+    "6lb Cannon":        "Light artillery, solid range and splash damage.",
+    "Mortar":            "High arc, very long range but inaccurate.",
+    "Multi-barrel":      "Rapid-firing anti-personnel gun, low splash.",
+    "Howitzer":          "Heavy howitzer, massive explosion and damage."
+};
+
+function showSkillTooltip(node, event) {
+    if (currentTooltip) hideSkillTooltip();
+
+    const stats = node.unlock ? UnitStats[node.unlock] : null;
+    const isBought = node.bought;
+    const isBlocked = (() => {
+        const allNodes = [SkillTree.center, ...SkillTree.nodes];
+        const conflictNode = allNodes.find(n => n.id === node.conflicts);
+        return conflictNode && conflictNode.bought;
+    })();
+
+    let html = '';
+    
+    if (node.unlock && stats) {
+        html += `<div style="color:#ffd700; font-weight:bold; margin-bottom:2px;">${node.unlock}</div>`;
+        const desc = unitDescriptions[node.unlock] || "A versatile military unit.";
+        html += `<div style="color:#aaa; font-size:10px; margin-bottom:6px;">${desc}</div>`;
+        
+        html += `<span>HP: ${stats.hp}  [${stats.size}/${stats.size}]</span><br>`;
+        html += `<span>Dmg: ${stats.dmg}  Range: ${stats.range}</span><br>`;
+        html += `<span>Reload: ${(stats.reload/1000).toFixed(1)}s  Speed: ${stats.speed}</span><br>`;
+        html += `<hr style="margin:4px 0; border-color:#444;">`;
+        html += `<span class="cost">Cost: ${node.cost} gold</span>`;
+        if (isBought) html += `<br><span style="color:#ffd700;">✓ researched</span>`;
+        else if (isBlocked) html += `<br><span style="color:#cc4444;">✗ blocked (conflict)</span>`;
+    } else {
+        html += `<div style="color:#ffd700; font-weight:bold; margin-bottom:2px;">${node.label}</div>`;
+        html += `<div style="color:#aaa; font-size:10px; margin-bottom:6px;">Unlocks new unit branches.</div>`;
+        html += `<hr style="margin:4px 0; border-color:#444;">`;
+        html += `<span class="cost">Cost: ${node.cost} gold</span>`;
+        if (isBought) html += `<br><span style="color:#ffd700;">✓ researched</span>`;
+    }
+
+    const tooltip = document.createElement('div');
+    tooltip.className = 'skill-tooltip';
+    tooltip.innerHTML = html;
+    document.body.appendChild(tooltip);
+    currentTooltip = tooltip;
+
+    const updatePosition = (e) => {
+        let left = e.clientX + 15;
+        let top = e.clientY - 30;
+        if (left + tooltip.offsetWidth > window.innerWidth) left = e.clientX - tooltip.offsetWidth - 5;
+        if (top < 0) top = e.clientY + 20;
+        tooltip.style.left = left + 'px';
+        tooltip.style.top = top + 'px';
+    };
+    updatePosition(event);
+    const moveHandler = (moveEvent) => updatePosition(moveEvent);
+    node.divElement.addEventListener('mousemove', moveHandler);
+    node.moveHandler = moveHandler;
+}
+
+function hideSkillTooltip() {
+    if (currentTooltip) {
+        currentTooltip.remove();
+        currentTooltip = null;
+    }
+}
+
 function renderTree() {
     const container = document.getElementById("tree-container");
     if (!container) return;
@@ -50,14 +140,9 @@ function renderTree() {
                 const canBuyNow = parent.bought && !node.bought && !isBlockedByConflict;
 
                 let lineColor = "#444";
-
-                if (node.bought) {
-                    lineColor = "#ffd700";
-                } else if (isBlockedByConflict) {
-                    lineColor = "#9b1e1e";
-                } else if (canBuyNow) {
-                    lineColor = "#1e419b";
-                }
+                if (node.bought) lineColor = "#ffd700";
+                else if (isBlockedByConflict) lineColor = "#9b1e1e";
+                else if (canBuyNow) lineColor = "#1e419b";
 
                 line.setAttribute("stroke", lineColor);
                 line.setAttribute("stroke-width", "3");
@@ -73,16 +158,16 @@ function renderTree() {
         div.style.left = node.x + "px";
         div.style.top = node.y + "px";
 
-        div.onmouseover = () => {
-            const infoBox = document.getElementById("unit-info-display");
-            if (infoBox) {
-                let status = node.bought ? "[OPEN]" : isBlocked ? "[LOCKED]" : `[COST: ${node.cost}G]`;
-                infoBox.innerText = `${status} ${node.label} - ${node.unlock || "Upgrade"}`;
-            }
+        div.onmouseover = (e) => {
+            node.divElement = div;
+            showSkillTooltip(node, e);
         };
         div.onmouseout = () => {
-            const infoBox = document.getElementById("unit-info-display");
-            if (infoBox) infoBox.innerText = "";
+            hideSkillTooltip();
+            if (node.moveHandler) {
+                div.removeEventListener('mousemove', node.moveHandler);
+                delete node.moveHandler;
+            }
         };
 
         div.onclick = () => {
@@ -103,5 +188,9 @@ function renderTree() {
 function toggleTree() {
     const ui = document.getElementById("tree-menu");
     ui.style.display = (ui.style.display === "block") ? "none" : "block";
-    if (ui.style.display === "block") renderTree();
+    if (ui.style.display === "block") {
+        renderTree();
+    } else {
+        hideSkillTooltip();
+    }
 }

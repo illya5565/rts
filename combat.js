@@ -110,6 +110,12 @@ function shootSquad(attacker, target, aimPoint) {
     if (now - attacker.lastShot < attacker.stats.reload) return false;
 
     const alive = attacker.soldiers.filter(s => s.alive);
+    if (target && target.side === attacker.side && attacker.isSupport) {
+        attacker.lastShot = performance.now();
+        alive.forEach(sol => sol.setAnimState("shoot"));
+        _applySupportEffect(attacker);
+        return true;
+    }
     if (!alive.length) return false;
 
     const colliding = target ? areSquadsColliding(attacker, target) : false;
@@ -127,12 +133,21 @@ function shootSquad(attacker, target, aimPoint) {
     let finalAcc = Math.min(1.0, attacker.effectiveAcc + accBonus);
     let finalDmg = attacker.stats.dmg;
 
-    if (isMelee) { finalAcc = 1.0; finalDmg *= 1.5; }
+    if (isMelee) {
+        finalAcc = 1.0;
+        finalDmg = attacker.stats.dmg * 1.5;
+        if (attacker.type === "Pikemen" && target && target.isCavalry) {
+            finalDmg *= (attacker.stats.bonusVsCavalry || 1);
+        }
+        if (target && target.type === "Knights") {
+            finalDmg *= (target.stats.damageReductionFromMelee || 1);
+        }
+    }
 
     alive.forEach(sol => sol.setAnimState("shoot"));
     attacker.lastShot = now;
-    if (!attacker.stats.bulletType) {
-        if (typeof Audio !== "undefined") Audio.playShoot(attacker.isCavalry);
+    if (!attacker.stats.bulletType && !attacker.isSupport) {
+    if (typeof Audio !== "undefined") Audio.playShoot(attacker.isCavalry);
     }
 
     if (attacker.stats.bulletType) {
@@ -185,8 +200,47 @@ function _tickHealAura(attacker) {
         }));
 }
 
+function _applySupportEffect(attacker) {
+    if (!attacker.isSupport) return;
+
+    const now = performance.now();
+    const range = attacker.stats.range || 150;
+    const allies = squads.filter(s => s.side === attacker.side && s.alive && s !== attacker &&
+                                     Math.hypot(attacker.x - s.x, attacker.y - s.y) < range);
+
+    if (attacker.aura && attacker.aura.startsWith("heal")) {
+        const limit = attacker.aura === "heal_multi" ? 3 : 1;
+        const healAmt = attacker.aura === "heal_mega" ? 15 : 8;
+        allies.slice(0, limit).forEach(sq => {
+            sq.soldiers.forEach(sol => {
+                if (sol.alive && sol.hp < sol.maxHp) sol.hp = Math.min(sol.maxHp, sol.hp + healAmt);
+            });
+        });
+    } 
+    else if (attacker.aura === "accuracy") {
+        allies.forEach(sq => {
+            sq.tempBuffEnd = now + 4000;
+            sq.tempAccMod = 0.25;
+        });
+    }
+    else if (attacker.aura === "all_stats") {
+        allies.forEach(sq => {
+            sq.tempBuffEnd = now + 4000;
+            sq.tempAccMod = 0.20;
+            sq.tempSpeedMod = 0.15;
+        });
+    }
+    else if (attacker.aura === "all_stats_mega") {
+        allies.forEach(sq => {
+            sq.tempBuffEnd = now + 5000;
+            sq.tempAccMod = 0.40;
+            sq.tempSpeedMod = 0.35;
+        });
+    }
+}
+
 function handlePlacementClick(worldX, worldY) {
-    if (!isPlacementPhase || !selectedUnitType) return;
+    if (!isPlacementPhase || !selectedUnitType || campaignMapMode || (gameMode === "campaign" && !campaignConditionMet)) return;
     if (worldX > 450 || worldY < 0 || worldY > worldHeight) return;
     const cost = UnitStats[selectedUnitType].cost;
     if (playerGold < cost || playerArmy.length >= 20) return;

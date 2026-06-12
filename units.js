@@ -30,17 +30,19 @@ const UnitStats = {
         hp: 65, dmg: 32, range: 42, reload: 1100,
         speed: 1.25, acc: 0.75, rotSpeed: 0.07, cost: 90,
     },
-    "Armored Knights": {
+    "Knights": {
         replaces: "Veteran Swordsmen",
         size: 12,
         hp: 220, dmg: 50, range: 55, reload: 1400,
         speed: 2.0, acc: 0.92, rotSpeed: 0.04, cost: 270,
+        damageReductionFromMelee: 0.5,
     },
     "Pikemen": {
         replaces: "Veteran Swordsmen",
         size: 20,
         hp: 70, dmg: 38, range: 90, reload: 1400,
         speed: 1.05, acc: 0.82, rotSpeed: 0.07, cost: 130,
+        bonusVsCavalry: 2.0,
     },
 
     "Hussars": {

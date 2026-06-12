@@ -8,7 +8,7 @@ const DEBUFF_DMGTAKEN_MAX      = 1.50;
 
 const TEXTURE_COORDS = {
     "Line Infantry":    [1,1], "Veteran Swordsmen": [1,2],
-    "Armored Knights":  [1,3], "Pikemen":            [1,4],
+    "Knights":  [1,3], "Pikemen":            [1,4],
     "Ensign":           [1,5], "Commander":          [1,6],
     "High Officer":     [1,7], "Mounted Commander":  [1,8],
     "Fusiliers":        [2,2], "Grenadiers":         [2,3], "Elite Guard":   [2,4],
@@ -24,7 +24,7 @@ const CAVALRY_TYPES   = new Set(["Hussars","Cuirassiers","Dragoon","Horse Jager"
 const ARTILLERY_TYPES = new Set(["6lb Cannon","Howitzer","Multi-barrel","Mortar"]);
 const SUPPORT_TYPES   = new Set(["Commander","Ensign","Medic","Mounted Commander",
                                   "High Officer","Field Surgeon","Medical Squad"]);
-const MELEE_TYPES     = new Set(["Veteran Swordsmen","Armored Knights","Pikemen"]);
+const MELEE_TYPES     = new Set(["Veteran Swordsmen","Knights","Pikemen"]);
 const BAYONET_TYPES   = new Set(["Fusiliers","Grenadiers"]);
 
 class Squad {
@@ -63,29 +63,55 @@ class Squad {
         this.soldiers     = this._buildSoldiers();
         this.initialCount = this.soldiers.length;
         this.groupRadius  = Math.max(this.hitbox.w, this.hitbox.h) / 2;
+        this.tempBuffEnd = 0;
+        this.tempAccMod = 0;
+        this.tempSpeedMod = 0;
     }
 
     _buildHitbox() {
-        const cnt     = this.stats.size || 1;
-        const maxRows = this.isArtillery ? 1 : (this.isCavalry ? 3 : 6);
+    const cnt = this.stats.size || 1;
+    let bestRows = 1, bestCols = cnt;
 
-        let bestRows = 1, bestCols = cnt;
+    if (this.isArtillery) {
+        bestRows = 1;
+        bestCols = cnt;
+    } else if (this.isCavalry) {
+        const maxRows = 3;
         for (let r = 1; r <= Math.min(cnt, maxRows); r++) {
             const c = Math.ceil(cnt / r);
             if (Math.abs(c - r) <= Math.abs(bestCols - bestRows)) {
-                bestRows = r; bestCols = c;
+                bestRows = r;
+                bestCols = c;
             }
         }
-
-        const spacingX = this.isArtillery ? 24 : (this.isCavalry ? 20 : 14);
-        const spacingY = this.isArtillery ? 20 : (this.isCavalry ? 20 : 10);
-        const hW       = this.isArtillery ? 12 : (this.isCavalry ? 8 : 4);
-        const hH       = this.isArtillery ?  6 : (this.isCavalry ? 8 : 6);
-
-        this._rows = bestRows; this._cols = bestCols;
-        this._spacingX = spacingX; this._spacingY = spacingY;
-        this.hitbox = { w: (bestCols-1)*spacingX + hW, h: (bestRows-1)*spacingY + hH };
+    } else {
+        if (cnt <= 6) {
+            bestRows = 1;
+        } else if (cnt <= 16) {
+            bestRows = 2;
+        } else {
+            bestRows = 3;
+        }
+        bestCols = Math.ceil(cnt / bestRows);
+        let tmp = bestRows;
+        bestRows = bestCols;
+        bestCols = tmp;
     }
+
+    const spacingX = this.isArtillery ? 24 : (this.isCavalry ? 20 : 14);
+    const spacingY = this.isArtillery ? 20 : (this.isCavalry ? 20 : 10);
+    const hW       = this.isArtillery ? 12 : (this.isCavalry ? 8 : 4);
+    const hH       = this.isArtillery ?  6 : (this.isCavalry ? 8 : 6);
+
+    this._rows = bestRows;
+    this._cols = bestCols;
+    this._spacingX = spacingX;
+    this._spacingY = spacingY;
+    this.hitbox = {
+        w: (bestCols - 1) * spacingX + hW,
+        h: (bestRows - 1) * spacingY + hH,
+    };
+}
 
     _buildSoldiers() {
         const cnt    = this.stats.size || 1;
@@ -141,8 +167,15 @@ class Squad {
         return null;
     }
 
-    get effectiveSpeed() { return this.stats.speed; }
-    get effectiveAcc()   { return Math.min(1, this.stats.acc * this.accDebuff); }
+    get effectiveSpeed() { 
+        let bonus = (this.tempBuffEnd > performance.now()) ? this.tempSpeedMod : 0;
+        return this.stats.speed * (1 + bonus);
+    }
+    get effectiveAcc() { 
+        let base = Math.min(1, this.stats.acc * this.accDebuff);
+        let bonus = (this.tempBuffEnd > performance.now()) ? this.tempAccMod : 0;
+        return Math.min(1, base + bonus);
+    }
     get aliveCount()     { return this.soldiers.filter(s => s.alive).length; }
     get isFullyDead()    { return !this.soldiers.some(s => s.alive); }
     get canFight()       { return !this.isFullyDead; }

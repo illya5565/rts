@@ -4,12 +4,18 @@ body { margin: 0; background: #111; font-family: monospace; }
 
 #game-window {
     width: 1300px;
+    margin: 0 auto;
     background: #333;
     position: relative;
     border: 5px solid #222;
 }
 
-#gameCanvas { display: block; background: #1e3b12; }
+#gameCanvas {
+    display: block;
+    background: #1e3b12;
+    width: 100%;
+    height: auto;
+}
 
 #ui-panel {
     height: 160px;
@@ -77,7 +83,7 @@ body { margin: 0; background: #111; font-family: monospace; }
 }
 .skill-node.bought  { border-color: #ffd700; }
 .skill-node.blocked { border-color: #9b1e1e; opacity: 1 !important; }
-.skill-node:hover:not(.blocked) { transform: scale(1.2); background: #444; }
+.skill-node:hover:not(.blocked) { border: 8px solid #444; background: #444; margin: -3px; }
 
 .overlay-menu {
     position: absolute; top: 0; left: 0;
@@ -109,3 +115,90 @@ body { margin: 0; background: #111; font-family: monospace; }
 #info-scroll::-webkit-scrollbar { width: 6px; }
 #info-scroll::-webkit-scrollbar-track { background: #111; }
 #info-scroll::-webkit-scrollbar-thumb { background: #555; border-radius: 3px; }
+
+.skill-tooltip {
+    position: fixed;
+    background: rgba(20,20,20,0.95);
+    border: 1px solid #888;
+    border-radius: 0;
+    padding: 6px 12px;
+    font-family: monospace;
+    font-size: 11px;
+    color: #ffd700;
+    pointer-events: none;
+    z-index: 10000;
+    white-space: nowrap;
+    box-shadow: 2px 2px 6px rgba(0,0,0,0.5);
+    backdrop-filter: blur(2px);
+}
+.skill-tooltip span {
+    color: #ccc;
+}
+.skill-tooltip .cost {
+    color: #ffaa33;
+    font-weight: bold;
+}
+.skill-tooltip hr {
+    margin: 4px 0;
+    border-color: #444;
+}
+#map-menu {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 700px;
+    height: 450px;
+    background: #d9c28c;
+    display: none;
+    z-index: 2100;
+    overflow: hidden;
+    box-shadow: 0 0 20px rgba(0,0,0,0.5);
+    border: 2px solid #aa8c54;
+}
+#map-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+#map-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+}
+#close-map-btn {
+    position: absolute;
+    top: 8px;
+    right: 12px;
+    background: #7a2e2e;
+    color: white;
+    border: none;
+    font-size: 20px;
+    font-weight: bold;
+    cursor: pointer;
+    padding: 2px 10px;
+    z-index: 2110;
+    font-family: monospace;
+    border-radius: 2px;
+}
+#close-map-btn:hover {
+    background: #9b1e1e;
+}
+
+#tap-to-start {
+    font-size: 48px;
+    font-weight: bold;
+    color: #ffd700;
+    text-align: center;
+    margin: 40px auto;
+    cursor: pointer;
+    text-shadow: 4px 4px 8px #000;
+    animation: pulse 1.2s infinite;
+    font-family: monospace;
+    letter-spacing: 6px;
+}
+@keyframes pulse {
+    0% { opacity: 0.5; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.1); }
+    100% { opacity: 0.5; transform: scale(1); }
+}

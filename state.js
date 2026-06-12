@@ -11,9 +11,15 @@ let isAutoMode       = true;
 let selectedSquads   = [];
 let isSelecting      = false;
 let selectionBox     = { x1: 0, y1: 0, x2: 0, y2: 0 };
+let selectedCampaignPin = null;
 
 let worldWidth  = 2000;
 let worldHeight = 1000;
+
+let campaignMapMode = false;
+let campaignConditionMet = false;
+
+let campaignMap = null;
 
 let camera = { x: 0, y: 0, speed: 7 };
 let keys   = {};
@@ -32,3 +38,8 @@ let config = {
     auto:    "KeyQ",
     inspect: "KeyE",
 };
+
+let campaignRemainingWaves = 0;
+let campaignCurrentWave = 1;
+let campaignTotalWaves = 0;
+let campaignLives = 3;

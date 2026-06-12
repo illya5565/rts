@@ -210,9 +210,13 @@ function draw() {
     ctx.restore();
     _updateAndDrawParticles();
 
-    ctx.fillStyle="rgba(0,0,0,0.55)"; ctx.fillRect(10,10,270,28);
+    ctx.fillStyle="rgba(0,0,0,0.55)"; ctx.fillRect(10,10,290,24);
     ctx.fillStyle="#fff"; ctx.font="12px monospace";
     ctx.fillText("Q: auto ["+(isAutoMode?"ON":"OFF")+"]  |  E: inspect  |  WASD: move", 18, 25);
+    if (gameMode === "campaign" && selectedCampaignPin && isPlacementPhase && !campaignMapMode) {
+    ctx.fillStyle = campaignLives > 1 ? "#ffaa66" : "#ff4444";
+    ctx.fillText(`❤️Lives: ${campaignLives}`, 18, 45);
+}
 
     _drawInspectTooltip();
 }
